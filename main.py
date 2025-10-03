@@ -1,14 +1,14 @@
 import os
 import requests
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Configuración desde variables de entorno
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 WEATHER_API_KEY = os.environ.get('WEATHER_API_KEY')
 PORT = int(os.environ.get('PORT', 8443))
 
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el comando /start"""
     user = update.message.from_user
     welcome_text = f"""
@@ -27,14 +27,14 @@ Simplemente escribe el nombre de cualquier ciudad y te diré el clima actual.
 
 ¡Prueba ahora! ✨
     """
-    update.message.reply_text(welcome_text)
+    await update.message.reply_text(welcome_text)
 
-def get_weather(update: Update, context: CallbackContext):
+async def get_weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Obtiene y envía el clima de la ciudad solicitada"""
     city = update.message.text.strip()
     
     if not city:
-        update.message.reply_text("❌ Por favor, escribe el nombre de una ciudad.")
+        await update.message.reply_text("❌ Por favor, escribe el nombre de una ciudad.")
         return
     
     try:
@@ -67,9 +67,9 @@ def get_weather(update: Update, context: CallbackContext):
                 f"¡Que tengas un buen día! ☀️"
             )
             
-            update.message.reply_text(message)
+            await update.message.reply_text(message)
         else:
-            update.message.reply_text(
+            await update.message.reply_text(
                 "❌ No pude encontrar esa ciudad.\n"
                 "• Verifica que el nombre esté bien escrito\n"
                 "• Intenta en inglés si es una ciudad pequeña\n"
@@ -77,9 +77,9 @@ def get_weather(update: Update, context: CallbackContext):
             )
     
     except requests.exceptions.RequestException:
-        update.message.reply_text("🌐 Error de conexión. Intenta nuevamente en un momento.")
+        await update.message.reply_text("🌐 Error de conexión. Intenta nuevamente en un momento.")
     except Exception as e:
-        update.message.reply_text("⚠️ Ocurrió un error inesperado. Intenta más tarde.")
+        await update.message.reply_text("⚠️ Ocurrió un error inesperado. Intenta más tarde.")
 
 def get_weather_emoji(weather_main):
     """Devuelve emoji según el tipo de clima"""
@@ -95,7 +95,7 @@ def get_weather_emoji(weather_main):
     }
     return emoji_map.get(weather_main, '🌤️')
 
-def help_command(update: Update, context: CallbackContext):
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el comando /help"""
     help_text = """
 🆘 **Ayuda - Bot del Clima** 🌤️
@@ -117,7 +117,7 @@ Simplemente escribe el nombre de cualquier ciudad y recibirás información actu
 **Soporte:**
 Si encuentras problemas, verifica que el nombre de la ciudad esté correctamente escrito.
     """
-    update.message.reply_text(help_text)
+    await update.message.reply_text(help_text)
 
 def main():
     """Función principal para iniciar el bot"""
@@ -125,19 +125,18 @@ def main():
         print("❌ Error: BOT_TOKEN o WEATHER_API_KEY no están configurados")
         return
     
-    # Crear updater y dispatcher
-    updater = Updater(BOT_TOKEN)
-    dispatcher = updater.dispatcher
+    # Crear aplicación
+    application = Application.builder().token(BOT_TOKEN).build()
     
     # Añadir handlers
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("help", help_command))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, get_weather))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, get_weather))
     
     # Iniciar el bot en Render (usando webhook)
     if 'RENDER' in os.environ:
         webhook_url = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}/{BOT_TOKEN}"
-        updater.start_webhook(
+        application.run_webhook(
             listen="0.0.0.0",
             port=PORT,
             url_path=BOT_TOKEN,
@@ -146,12 +145,12 @@ def main():
         print(f"🤖 Bot iniciado en modo webhook: {webhook_url}")
     else:
         # Modo local (para pruebas)
-        updater.start_polling()
+        application.run_polling()
         print("🤖 Bot iniciado en modo polling (local)")
     
     print("✅ Bot del clima está funcionando...")
-    updater.idle()
 
 if __name__ == "__main__":
     main()
+
 
